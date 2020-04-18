@@ -155,6 +155,10 @@ prompt_pure_preprompt_render() {
 		preprompt_parts+=('%F{$prompt_pure_colors[git:stash]}${PURE_GIT_STASH_SYMBOL:-≡}%f')
 	fi
 
+	if [[ -n $prompt_pure_kube ]]; then
+		preprompt_parts+=('%F{$prompt_pure_colors[kube]}🧊 ${prompt_pure_kube}%f')
+	fi
+
 	# Execution time.
 	[[ -n $prompt_pure_cmd_exec_time ]] && preprompt_parts+=('%F{$prompt_pure_colors[execution_time]}${prompt_pure_cmd_exec_time}%f')
 
@@ -277,6 +281,16 @@ prompt_pure_async_vcs_info() {
 	info[action]=$vcs_info_msg_2_
 
 	print -r - ${(@kvq)info}
+}
+
+prompt_pure_async_kube() {
+	setopt localoptions noshwordsplit
+	local kubeinfo=""
+	local ctx=$(command kubectl config current-context)
+	local ns=$(command kubectl config view -o=jsonpath="{.contexts[?(@.name==\"${ctx}\")].context.namespace}")
+	[ ! "$ns" ] && ns="<unset>"
+	[ "$ctxt" ] && kubeinfo="$ctx/$ns"
+	print -r - $kubeinfo
 }
 
 # Fastest possible way to check if a Git repo is dirty.
@@ -414,6 +428,10 @@ prompt_pure_async_tasks() {
 
 	async_job "prompt_pure" prompt_pure_async_vcs_info
 
+	if (( ${PURE_KUBE:-0} )); then
+		async_job "prompt_pure" prompt_pure_async_kube
+	fi
+
 	# Only perform tasks inside a Git working tree.
 	[[ -n $prompt_pure_vcs_info[top] ]] || return
 
@@ -495,6 +513,11 @@ prompt_pure_async_callback() {
 				# rerun async tasks just in case.
 				prompt_pure_async_tasks
 			fi
+			;;
+		prompt_pure_async_kube)
+			typeset -g prompt_pure_kube
+			prompt_pure_kube=$output
+			do_render=1
 			;;
 		prompt_pure_async_vcs_info)
 			local -A info
@@ -778,6 +801,7 @@ prompt_pure_setup() {
 		git:branch:cached    red
 		git:action           yellow
 		git:dirty            218
+		kube                 yellow
 		host                 242
 		path                 blue
 		prompt:error         red
